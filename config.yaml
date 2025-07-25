@@ -1,0 +1,11 @@
+
+pdf:
+  path: "/Users/alicja/Desktop/BA-code/Corpora/MotorcycleDiaries.pdf"
+  start_page: 28
+  end_page: 148
+
+
+gazetteer:
+  username: "alicjab"
+  countries: ["AR", "CL", "PE", "CO", "VE", "BO", "EC", "PA", "CR", "GT", "MX", "CU", "BR", "GY", "PY", "SR", "UY", "HN", "SV", "NI"]
+  max_rows: 1000
