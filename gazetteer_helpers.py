@@ -1,21 +1,28 @@
 import requests
 import time
 from typing import List, Set
+import pandas as pd
 
 
-def build_gazetteer(username: str, countries: List[str], max_rows: int = 1000) -> Set[str]:
+import requests
+import time
+from typing import List, Dict
+import pandas as pd
+
+import requests
+import time
+from typing import List, Dict
+import pandas as pd
+
+def build_gazetteer(username: str, countries: List[str], max_rows: int = 1000) -> Dict[str, Dict[str, float]]:
     """
-    Downloads city names from GeoNames for a list of countries.
-
-    Args:
-        username (str): Your GeoNames API username.
-        countries (List[str]): List of ISO country codes.
-        max_rows (int): Max cities per request.
+    Downloads city names from GeoNames for a list of countries,
+    including latitude and longitude for each city.
 
     Returns:
-        Set[str]: A deduplicated set of city names in lowercase.
+        Dict[str, Dict[str, float]]: Mapping city name to lat/lon
     """
-    gazetteer = set()
+    gazetteer = {}
     print("🌍 Downloading cities from GeoNames...")
 
     for country_code in countries:
@@ -37,13 +44,40 @@ def build_gazetteer(username: str, countries: List[str], max_rows: int = 1000) -
                 cities = data.get("geonames", [])
                 if not cities:
                     break
-                city_names = [entry["name"].lower() for entry in cities if "name" in entry]
-                gazetteer.update(city_names)
-                loaded += len(city_names)
-                time.sleep(1)  # To respect API rate limits
-            print(f"✅ {country_code}: Loaded {loaded} cities.")
+
+                for entry in cities:
+                    name = entry.get("name", "").lower()
+                    lat = entry.get("lat")
+                    lon = entry.get("lng")
+                    if name and lat and lon:
+                        gazetteer[name] = {
+                            "lat": float(lat),
+                            "lon": float(lon)
+                        }
+                        loaded += 1
+
+                time.sleep(1)  # Respect GeoNames API rate limits
+            print(f"✅ {country_code}: Loaded {loaded} cities with coordinates.")
         except Exception as e:
             print(f"❌ {country_code}: {e}")
 
-    print(f"📌 Total unique cities gathered: {len(gazetteer)}")
+    print(f"📌 Total cities in gazetteer: {len(gazetteer)}")
     return gazetteer
+
+
+
+
+
+# === Remove overlapping (shorter) entities in same sentence ===
+def remove_overlapping_shorter(df: pd.DataFrame) -> pd.DataFrame:
+    clean = []
+    for sid in df["sentence_id"].unique():
+        sent_df = df[df["sentence_id"] == sid].sort_values("start_char")
+        to_keep = []
+        last_end = -1
+        for _, row in sent_df.iterrows():
+            if row["start_char"] >= last_end:
+                to_keep.append(row)
+                last_end = row["end_char"]
+        clean.append(pd.DataFrame(to_keep))
+    return pd.concat(clean, ignore_index=True)
