@@ -1,0 +1,19 @@
+spacy==3.7.5
+pandas==2.2.2
+numpy==1.26.4
+PyMuPDF==1.24.7
+pyyaml==6.0.2
+rapidfuzz==3.9.6
+nltk==3.9.1
+tqdm==4.66.4
+matplotlib==3.9.0
+scikit-learn==1.5.1
+contractions==0.1.73
+
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+python - <<'PY'
+import nltk
+for pkg in ["stopwords","wordnet","names","averaged_perceptron_tagger"]:
+    nltk.download(pkg)
+PY

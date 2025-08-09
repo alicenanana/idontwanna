@@ -1,11 +1,85 @@
-
 pdf:
   path: "/Users/alicja/Desktop/BA-code/Corpora/MotorcycleDiaries.pdf"
-  start_page: 28
+  start_page: 40
   end_page: 148
-
 
 gazetteer:
   username: "alicjab"
-  countries: ["AR", "CL", "PE", "CO", "VE", "BO", "EC", "PA", "CR", "GT", "MX", "CU", "BR", "GY", "PY", "SR", "UY", "HN", "SV", "NI"]
-  max_rows: 1000
+  countries: ["AR","CL","PE","CO","VE","BO","EC","PA","CR","GT","MX","CU","BR","GY","PY","SR","UY","HN","SV","NI"]
+  max_rows: 1000   # per country upper cap (GeoNames page-size is 1000)
+  force_rebuild: true  
+  cache_dir: "cache/gazetteer"
+  # network controls
+  page_size: 1000
+  timeout: 20          # seconds per request
+  retries: 4           # total attempts per page
+  backoff_base: 1.5    # exponential backoff factor
+  sleep_between: 0.6   # seconds between calls (be nice to API)
+  https: true          # use https instead of http
+  #host: "api.geonames.org"   # try this first; fallbacks are handled in code
+  https: true
+  timeout: 30
+  retries: 6
+  sleep_between: 1.0
+
+
+filters:
+  min_len: 20
+  max_len: 600
+  max_digits_ratio: 0.4
+  drop_if_matches:
+    - "^Figure\\s"
+    - "^Fig\\.\\s"
+    - "^Table\\s"
+    - "^Cuadro\\s"        # ES
+    - "^Tabela\\s"        # PT
+  drop_sections:
+    - "^\\s*References\\b"
+    - "^\\s*Bibliography\\b"
+    - "^\\s*Obras? citadas\\b"   # ES
+    - "^\\s*Referências\\b"      # PT
+  ocr_replacements:
+    "ﬁ": "fi"
+    "ﬂ": "fl"
+    "ﬃ": "ffi"
+    "ﬄ": "ffl"
+    "ﬀ": "ff"
+    "ﬅ": "ft"
+    "ﬆ": "st"
+    "…": "..."
+    "—": "-"
+    "–": "-"
+
+
+
+transport:
+  device_keywords:
+    motorcycle: ["motorcycle","bike","norton","la poderosa","poderosa"]
+    truck: ["truck","lorry","camion","camión"]
+    bus: ["bus","coach","colectivo"]
+    car: ["car","auto","taxi"]
+    boat: ["boat","ship","raft","canoe","ferry","barge"]
+    plane: ["plane","flight","aircraft","airport","avion","avión"]
+    train: ["train","rail","station","ferrocarril"]
+    horse: ["horse","mule","donkey","caballo","mula"]
+    foot: ["walk","hike","trek","foot","a pie"]
+  colors:
+    motorcycle: "red"
+    truck: "orange"
+    bus: "purple"
+    car: "darkblue"
+    boat: "cadetblue"
+    plane: "darkgreen"
+    train: "black"
+    horse: "brown"
+    foot: "gray"
+    unknown: "blue"
+
+route_advanced:
+  window: 1                # sentences of context on each side
+  min_move_score: 1        # threshold to accept a hop
+  device_bonus: 0.5        # score bonus if a device keyword appears in window
+  symbolic_penalty: 0.5    # subtract if symbolic verbs also present
+  max_same_city_gap: 2     # allow repeats within this gap to collapse
+  export_geojson: true     # write a GeoJSON line+points file next to the map
+
