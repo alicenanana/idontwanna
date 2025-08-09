@@ -1,7 +1,7 @@
-# geoparser/gazetteer_helpers.py
-import time
+# === geoparser/gazetteer_helpers.py ===
 import re
 from typing import List, Dict, Set, Tuple, Iterable, Pattern
+import time
 import requests
 import pandas as pd
 
@@ -13,21 +13,22 @@ except Exception:
     _HAS_FLASHTEXT = False
 
 # -------------------------------
-# GeoNames download
+# GeoNames download (cities only; extend as needed)
 # -------------------------------
 def build_gazetteer(username: str, countries: List[str], max_rows: int = 1000) -> Dict[str, Dict[str, float]]:
     """
     Download city names (featureClass=P) from GeoNames for the given countries.
+
     Returns mapping: lowercased city name -> {
         'lat': float, 'lon': float,
         'country_code': str,  # ISO2 (e.g., 'AR')
-        'country': str        # English name (e.g., 'Argentina')
+        'country': str,       # English name (e.g., 'Argentina')
+        'population': int     # population used for tie-breaking duplicate names
     }
-    """
-    import time
-    import requests
 
-    # Minimal ISO2 -> English country mapping for your list
+    Tie-break rule for duplicate names across countries:
+        keep the candidate with the largest 'population'.
+    """
     COUNTRY_NAME = {
         "AR":"Argentina","CL":"Chile","PE":"Peru","CO":"Colombia","VE":"Venezuela",
         "BO":"Bolivia","EC":"Ecuador","PA":"Panama","CR":"Costa Rica","GT":"Guatemala",
@@ -44,14 +45,14 @@ def build_gazetteer(username: str, countries: List[str], max_rows: int = 1000) -
             for start_row in range(0, 5000, max_rows):
                 url = "http://api.geonames.org/searchJSON"
                 params = {
-                    "featureClass": "P",
+                    "featureClass": "P",             # populated places
                     "country": country_code,
                     "maxRows": max_rows,
                     "startRow": start_row,
                     "orderby": "population",
                     "username": username,
                 }
-                r = requests.get(url, params=params, timeout=10)
+                r = requests.get(url, params=params, timeout=15)
                 r.raise_for_status()
                 data = r.json()
                 cities = data.get("geonames", []) or []
@@ -64,30 +65,41 @@ def build_gazetteer(username: str, countries: List[str], max_rows: int = 1000) -
                     lon  = entry.get("lng")
                     if not (name and lat and lon):
                         continue
-                    gazetteer[name] = {
+
+                    # population for disambiguation (fallback to 0 if missing)
+                    try:
+                        pop = int(entry.get("population") or 0)
+                    except Exception:
+                        pop = 0
+
+                    rec = {
                         "lat": float(lat),
                         "lon": float(lon),
                         "country_code": country_code,
                         "country": COUNTRY_NAME.get(country_code, country_code),
+                        "population": pop,
                     }
+
+                    # keep the most populous candidate for this name
+                    if (name not in gazetteer) or (pop > int(gazetteer[name].get("population", -1))):
+                        gazetteer[name] = rec
                     loaded += 1
 
-                time.sleep(1)  # respect API rate limits
-            print(f"✅ {country_code}: Loaded {loaded} cities with coordinates.")
+                time.sleep(1)  # be nice to the API
+            print(f"✅ {country_code}: Loaded {loaded} cities (kept most-populous per name).")
         except Exception as e:
             print(f"❌ {country_code}: {e}")
 
-    print(f"📌 Total cities in gazetteer: {len(gazetteer)}")
+    print(f"📌 Total unique names in gazetteer: {len(gazetteer)}")
     return gazetteer
 
 
-
 def gazetteer_names(gaz: Dict[str, Dict[str, float]]) -> Set[str]:
-    """Return the set of place names (already lowercased in build_gazetteer)."""
+    """Return the set of place names (lowercased)."""
     return set(gaz.keys())
 
 # -------------------------------
-# Regex-based matcher (precompiled)
+# Regex-based matcher (precompiled; whole-word, case-insensitive)
 # -------------------------------
 _CAPITAL_RE = re.compile(r"[A-ZÁÉÍÓÚÜÑÇÃÕÂÊÔ]")
 
@@ -98,21 +110,22 @@ def _gaz_slice_ok(s: str) -> bool:
         return False
     if " " in t:
         return True
+    # Single-token: keep if looks capitalized in original string
     return bool(_CAPITAL_RE.match(t[0]))
 
 def build_gazetteer_patterns(places: Iterable[str], stop_words: Set[str]) -> List[Tuple[str, Pattern[str]]]:
     """
-    Build precompiled whole-word regex patterns for places (filtered & sorted).
-    Places should be lowercased already; we still lower when matching.
+    Build precompiled whole-word regex patterns for places.
+    Places should be lowercased already; we still lowercase the haystack for matching.
     """
     filtered = [p for p in places if isinstance(p, str) and len(p) > 3 and p.lower() not in stop_words]
-    filtered = sorted(set(filtered), key=len, reverse=True)
+    filtered = sorted(set(filtered), key=len, reverse=True)  # longest first
     return [(p, re.compile(rf"\b{re.escape(p.lower())}\b")) for p in filtered]
 
 def match_gazetteer_precompiled(text: str, patterns: List[Tuple[str, Pattern[str]]]) -> List[Tuple[str, str, int, int]]:
     """
     Use precompiled patterns to find place mentions.
-    Returns: (match_text, 'GAZETTEER', start, end)
+    Returns: (match_text, 'GAZETTEER', start, end) with rough title-case guard.
     """
     if not text:
         return []
@@ -127,12 +140,9 @@ def match_gazetteer_precompiled(text: str, patterns: List[Tuple[str, Pattern[str
     return out
 
 # -------------------------------
-# FlashText alternative (faster on huge dicts)
+# FlashText alternative (optional)
 # -------------------------------
 def build_keyword_processor(places: Iterable[str], stop_words: Set[str]) -> "KeywordProcessor":
-    """
-    Build a FlashText KeywordProcessor. Requires flashtext.
-    """
     if not _HAS_FLASHTEXT:
         raise ImportError("flashtext not installed. `pip install flashtext`")
     kp = KeywordProcessor(case_sensitive=False)
