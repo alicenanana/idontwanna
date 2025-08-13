@@ -1,10 +1,10 @@
 # nlp_helpers.py
-# -*- coding: utf-8 -*-
+
 """
 NLP helpers for the BA geoparser pipeline.
-Spanish & Portuguese friendly; config-driven filtering; notebook-stable APIs.
+Spanish & Portuguese city names (toponyms) friendly; config-driven filtering; notebook-stable APIs.
 
-Exports (as used by your notebook):
+Exports:
 - init_nlp
 - get_stopwords
 - tag_named_entities
@@ -29,7 +29,7 @@ import re
 import unicodedata
 from typing import Iterable, List, Dict, Optional, Any, Tuple, Union
 
-# ------- Third‑party -------
+
 try:
     import fitz  # PyMuPDF
 except Exception:
@@ -43,7 +43,7 @@ try:
 except Exception as e:
     raise RuntimeError("spaCy is required for nlp_helpers.py") from e
 
-# NLTK is optional; we try to use it if present
+# NLTK is optional;
 try:
     import nltk
     from nltk.corpus import stopwords as nltk_stopwords
@@ -52,9 +52,8 @@ except Exception:
     nltk_stopwords = None
 
 
-# =========================
+
 # Config
-# =========================
 
 def load_config(path: str = "config.yaml") -> Dict[str, Any]:
     with io.open(path, "r", encoding="utf-8") as f:
@@ -92,9 +91,9 @@ def load_filters(cfg: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-# =========================
+
 # NLP init (ES/PT aware)
-# =========================
+
 
 def init_nlp(
     lang: str = "es",
@@ -120,7 +119,7 @@ def init_nlp(
     prefer = prefer or []
     stanza_pipeline = None
 
-    # --- Optional GPU for spaCy (best-effort) ---
+    # ---GPU for spaCy (best-effort) ---
     if use_gpu:
         try:
             # IMPORTANT: use the module-level import; don't re-import inside the function.
@@ -144,7 +143,7 @@ def init_nlp(
         except Exception:
             continue
     if nlp is None:
-        # last resort: blank pipeline in requested lang (or English)
+        
         try:
             nlp = spacy.blank(lang if lang in {"en", "es", "pt"} else "en")
         except Exception:
@@ -215,9 +214,8 @@ def get_stopwords(nlp: Language, extra: Optional[Iterable[str]] = None, langs: O
     return {s.lower() for s in stops}
 
 
-# =========================
 # PDF extraction
-# =========================
+
 
 def extract_text_from_pdf(pdf_path: str, start_page: Optional[int] = None, end_page: Optional[int] = None) -> str:
     if fitz is None:
@@ -236,9 +234,9 @@ def extract_text_from_pdf(pdf_path: str, start_page: Optional[int] = None, end_p
         doc.close()
 
 
-# =========================
+
 # Normalization helpers
-# =========================
+
 
 _PUNCT_MAP = {
     "“": '"', "”": '"', "„": '"', "«": '"', "»": '"', "‹": "'", "›": "'",
@@ -291,9 +289,8 @@ def normalize_diacritics(text: str) -> str:
     return unicodedata.normalize("NFKC", stripped)
 
 
-# =========================
+
 # Cleaning
-# =========================
 
 def clean_light(text: str) -> str:
     if not text:
@@ -338,9 +335,9 @@ def clean_heavy(sent: str, nlp: Language, stopset: Optional[set] = None, min_len
     return " ".join(out)
 
 
-# =========================
+
 # Sentences & filtering
-# =========================
+
 
 def segment_sentences(text: str, nlp: Language) -> List[str]:
     if not text:
@@ -416,9 +413,9 @@ def filter_raw_sentences(
     return kept
 
 
-# =========================
-# Orchestrated preproc
-# =========================
+
+# Preprocessing text
+
 
 def preprocess_text(text: str, strip_diacritics: bool = False, apply_ocr: bool = True) -> str:
     if not text:
@@ -432,9 +429,9 @@ def preprocess_text(text: str, strip_diacritics: bool = False, apply_ocr: bool =
     return text
 
 
-# =========================
+
 # NER
-# =========================
+
 
 def tag_named_entities(text: str, nlp: Language, labels: Optional[Iterable[str]] = None) -> List[Dict[str, Any]]:
     if not text:

@@ -5,16 +5,16 @@ import time
 import requests
 import pandas as pd
 
-# Optional (fast path) – only used if you call the FlashText variant
+
 try:
     from flashtext import KeywordProcessor
     _HAS_FLASHTEXT = True
 except Exception:
     _HAS_FLASHTEXT = False
 
-# -------------------------------
-# GeoNames download (cities only; extend as needed)
-# -------------------------------
+
+# GeoNames download (cities only; can be extended as needed)
+
 def build_gazetteer(username: str, countries: List[str], max_rows: int = 1000) -> Dict[str, Dict[str, float]]:
     """
     Download city names (featureClass=P) from GeoNames for the given countries.
@@ -37,7 +37,7 @@ def build_gazetteer(username: str, countries: List[str], max_rows: int = 1000) -
     }
 
     gazetteer: Dict[str, Dict[str, float]] = {}
-    print("🌍 Downloading cities from GeoNames...")
+    print("Downloading cities from GeoNames...")
 
     for country_code in countries:
         loaded = 0
@@ -86,11 +86,11 @@ def build_gazetteer(username: str, countries: List[str], max_rows: int = 1000) -
                     loaded += 1
 
                 time.sleep(1)  # be nice to the API
-            print(f"✅ {country_code}: Loaded {loaded} cities (kept most-populous per name).")
+            print(f"{country_code}: Loaded {loaded} cities (kept most-populous per name).")
         except Exception as e:
-            print(f"❌ {country_code}: {e}")
+            print(f"{country_code}: {e}")
 
-    print(f"📌 Total unique names in gazetteer: {len(gazetteer)}")
+    print(f"Total unique names in gazetteer: {len(gazetteer)}")
     return gazetteer
 
 
@@ -98,9 +98,9 @@ def gazetteer_names(gaz: Dict[str, Dict[str, float]]) -> Set[str]:
     """Return the set of place names (lowercased)."""
     return set(gaz.keys())
 
-# -------------------------------
+
 # Regex-based matcher (precompiled; whole-word, case-insensitive)
-# -------------------------------
+
 _CAPITAL_RE = re.compile(r"[A-ZÁÉÍÓÚÜÑÇÃÕÂÊÔ]")
 
 def _gaz_slice_ok(s: str) -> bool:
@@ -139,9 +139,9 @@ def match_gazetteer_precompiled(text: str, patterns: List[Tuple[str, Pattern[str
                 out.append((sl, "GAZETTEER", start, end))
     return out
 
-# -------------------------------
+
 # FlashText alternative (optional)
-# -------------------------------
+
 def build_keyword_processor(places: Iterable[str], stop_words: Set[str]) -> "KeywordProcessor":
     if not _HAS_FLASHTEXT:
         raise ImportError("flashtext not installed. `pip install flashtext`")
@@ -161,9 +161,9 @@ def match_gazetteer_flashtext(text: str, kp: "KeywordProcessor") -> List[Tuple[s
             hits.append((sl, "GAZETTEER", start, end))
     return hits
 
-# -------------------------------
+
 # Label-aware overlap pruning
-# -------------------------------
+
 _LABEL_PRIORITY = {"GPE": 3, "LOC": 2, "FAC": 1, "GAZETTEER": 0}
 
 def remove_overlapping_shorter(df: pd.DataFrame) -> pd.DataFrame:
