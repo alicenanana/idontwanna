@@ -8,3 +8,4 @@ It’s part of my BA thesis in Digital Humanities, where I combine computational
 Status: Work in progress — currently focusing on cleaning up the notebook, modularizing helper functions, and improving how location mentions are linked with actual coordinates and country data.
 
 
+https://github.com/alicenanana/idontwanna/blob/main/geo_pipeline_flowchart_pretty_png.png
