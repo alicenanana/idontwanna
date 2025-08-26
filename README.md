@@ -46,11 +46,11 @@ Region‑aware maps: plots restricted to South America for readability.
 │  └─ processed/                  # cleaned text, enriched CSVs
 ├─ outputs/                       # figures, maps, final tables
 └─ env/                           # environment files (optional)
-``text 
+```text
 
 ## Configuration
 All run‑time parameters live in config.yaml. Use relative paths for portability.
-``text
+```text
 pdf:
 path: "data/raw/MotorcycleDiaries.pdf" # ← avoid absolute, user‑specific paths
 start_page: 28
