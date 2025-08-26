@@ -76,12 +76,12 @@ Each execution block is written to run stand‑alone after imports + function de
 ## Data Flow
 Ingest (PDF subset) → Clean (normalize, stopwords) → NER (spaCy) → Match/Enrich (gazetteer joins) → Filter (country allow‑list) → Persist (CSV/GeoCSV) → Visualize (South America bounds)
 
-*Post‑merge hygiene*: drop _x/_y duplicates; consolidate longitude/latitude; remove source‑specific duplicates once unified.
+*Post‑merge hygiene* : drop _x/_y duplicates; consolidate longitude/latitude; remove source‑specific duplicates once unified.
 
-##Usage
+## Usage
 Run cells in order: imports → functions → execution → viz. Figures and tables land in outputs/.
 
-##Outputs
+## Outputs
 
 - data/processed/…cleaned.csv — cleaned tokens/entities
 
