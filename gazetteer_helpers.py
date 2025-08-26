@@ -13,87 +13,163 @@ except Exception:
     _HAS_FLASHTEXT = False
 
 
-# GeoNames download (cities only; can be extended as needed)
+from requests.exceptions import SSLError, RequestException
 
-def build_gazetteer(username: str, countries: List[str], max_rows: int = 1000) -> Dict[str, Dict[str, float]]:
+def build_gazetteer(
+    username: str,
+    countries: List[str],
+    max_rows: int = 1000,
+    *,
+    host: str = "api.geonames.org",
+    https: bool = False,
+    page_size: int = 1000,
+    timeout: int = 20,
+    retries: int = 4,
+    backoff_base: float = 1.5,
+    sleep_between: float = 0.6,
+) -> Dict[str, Dict]:
     """
     Download city names (featureClass=P) from GeoNames for the given countries.
+    Respects YAML network knobs and falls back to HTTP if HTTPS cert fails.
 
-    Returns mapping: lowercased city name -> {
-        'lat': float, 'lon': float,
-        'country_code': str,  # ISO2 (e.g., 'AR')
-        'country': str,       # English name (e.g., 'Argentina')
-        'population': int     # population used for tie-breaking duplicate names
+    Returns mapping: name_lower -> {
+        'lat', 'lon', 'country_code', 'country', 'population',
+        'feature_class'='P', 'feature_code' (e.g. PPL)
     }
-
-    Tie-break rule for duplicate names across countries:
-        keep the candidate with the largest 'population'.
+    Tie-break: keep the candidate with the largest 'population' per name.
     """
     COUNTRY_NAME = {
         "AR":"Argentina","CL":"Chile","PE":"Peru","CO":"Colombia","VE":"Venezuela",
         "BO":"Bolivia","EC":"Ecuador","PA":"Panama","CR":"Costa Rica","GT":"Guatemala",
         "MX":"Mexico","CU":"Cuba","BR":"Brazil","GY":"Guyana","PY":"Paraguay",
-        "SR":"Suriname","UY":"Uruguay","HN":"Honduras","SV":"El Salvador","NI":"Nicaragua"
+        "SR":"Suriname","UY":"Uruguay","HN":"Honduras","SV":"El Salvador","NI":"Nicaragua",
+        "DO":"Dominican Republic","HT":"Haiti"
     }
 
-    gazetteer: Dict[str, Dict[str, float]] = {}
+    # de-dupe while preserving order
+    countries = list(dict.fromkeys(countries))
+
+    # initial scheme from YAML; may switch to http on SSL fail
+    scheme = "https" if https else "http"
+    base_url = f"{scheme}://{host}/searchJSON"
+
+    gazetteer: Dict[str, Dict] = {}
     print("Downloading cities from GeoNames...")
 
-    for country_code in countries:
-        loaded = 0
-        try:
-            for start_row in range(0, 5000, max_rows):
-                url = "http://api.geonames.org/searchJSON"
-                params = {
-                    "featureClass": "P",             # populated places
-                    "country": country_code,
-                    "maxRows": max_rows,
-                    "startRow": start_row,
-                    "orderby": "population",
-                    "username": username,
-                }
-                r = requests.get(url, params=params, timeout=15)
-                r.raise_for_status()
-                data = r.json()
-                cities = data.get("geonames", []) or []
-                if not cities:
-                    break
+    for cc in countries:
+        loaded_cc = 0
+        start_row = 0
 
-                for entry in cities:
-                    name = (entry.get("name") or "").strip().lower()
-                    lat  = entry.get("lat")
-                    lon  = entry.get("lng")
-                    if not (name and lat and lon):
+        while True:
+            if loaded_cc >= max_rows:
+                break
+
+            rows_to_fetch = min(page_size, max_rows - loaded_cc)
+            params = {
+                "featureClass": "P",       # populated places
+                "country": cc,
+                "maxRows": rows_to_fetch,
+                "startRow": start_row,
+                "orderby": "population",
+                "username": username,
+            }
+
+            attempt = 0
+            geos = None
+            while attempt <= retries:
+                try:
+                    r = requests.get(base_url, params=params, timeout=timeout)
+                    r.raise_for_status()
+                    data = r.json()
+
+                    # GeoNames sometimes returns {"status": {"message": "..."}}
+                    st = data.get("status")
+                    if isinstance(st, dict) and st.get("message"):
+                        raise RuntimeError(f"GeoNames error: {st.get('message')}")
+
+                    geos = data.get("geonames", []) or []
+                    break  # success
+                except SSLError as e:
+                    # fallback once to HTTP if HTTPS was requested
+                    if scheme == "https":
+                        print(f"{cc}: SSL error on HTTPS; falling back to HTTP…")
+                        scheme = "http"
+                        base_url = f"{scheme}://{host}/searchJSON"
+                        # retry immediately with HTTP (same attempt count)
                         continue
+                    # already on HTTP → treat as normal failure
+                    err = e
+                except RequestException as e:
+                    err = e
+                except Exception as e:
+                    err = e
 
-                    # population for disambiguation (fallback to 0 if missing)
-                    try:
-                        pop = int(entry.get("population") or 0)
-                    except Exception:
-                        pop = 0
+                # retry with backoff or give up
+                if attempt == retries:
+                    print(f"{cc}: giving up page startRow={start_row}: {err}")
+                    geos = []
+                    break
+                sleep_s = backoff_base ** attempt
+                time.sleep(sleep_s)
+                attempt += 1
 
-                    rec = {
-                        "lat": float(lat),
-                        "lon": float(lon),
-                        "country_code": country_code,
-                        "country": COUNTRY_NAME.get(country_code, country_code),
-                        "population": pop,
-                    }
+            if not geos:
+                break
 
-                    # keep the most populous candidate for this name
-                    if (name not in gazetteer) or (pop > int(gazetteer[name].get("population", -1))):
-                        gazetteer[name] = rec
-                    loaded += 1
+            for entry in geos:
+                name = (entry.get("name") or "").strip().lower()
+                lat  = entry.get("lat")
+                lon  = entry.get("lng")
+                if not (name and lat and lon):
+                    continue
 
-                time.sleep(1)  # be nice to the API
-            print(f"{country_code}: Loaded {loaded} cities (kept most-populous per name).")
-        except Exception as e:
-            print(f"{country_code}: {e}")
+                try:
+                    pop = int(entry.get("population") or 0)
+                except Exception:
+                    pop = 0
+
+                rec = {
+                    "lat": float(lat),
+                    "lon": float(lon),
+                    "country_code": cc,
+                    "country": COUNTRY_NAME.get(cc, cc),
+                    "population": pop,
+                    "feature_class": "P",
+                    "feature_code": entry.get("fcode"),
+                }
+
+                # keep the most-populous candidate for this name
+                if (name not in gazetteer) or (pop > int(gazetteer[name].get("population", -1))):
+                    gazetteer[name] = rec
+
+                loaded_cc += 1
+
+            start_row += len(geos)
+            time.sleep(sleep_between)
+
+        print(f"{cc}: Loaded {loaded_cc} cities (kept most-populous per name).")
 
     print(f"Total unique names in gazetteer: {len(gazetteer)}")
     return gazetteer
 
 
+def build_gazetteer_from_conf(gconf: dict) -> Dict[str, Dict]:
+    """
+    Convenience wrapper if you want to pass the whole YAML sub-dict.
+    Example: build_gazetteer_from_conf(config['gazetteer'])
+    """
+    return build_gazetteer(
+        username=gconf["username"],
+        countries=gconf["countries"],
+        max_rows=gconf.get("max_rows", 1000),
+        host=gconf.get("host", "api.geonames.org"),
+        https=bool(gconf.get("https", False)),
+        page_size=gconf.get("page_size", 1000),
+        timeout=gconf.get("timeout", 20),
+        retries=gconf.get("retries", 4),
+        backoff_base=gconf.get("backoff_base", 1.5),
+        sleep_between=gconf.get("sleep_between", 0.6),
+    )
 def gazetteer_names(gaz: Dict[str, Dict[str, float]]) -> Set[str]:
     """Return the set of place names (lowercased)."""
     return set(gaz.keys())

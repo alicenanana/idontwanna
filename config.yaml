@@ -4,8 +4,10 @@ pdf:
   end_page: 148
 
 gazetteer:
+
+  host: "api.geonames.org"
   username: "alicjab"
-  countries: ["AR","CL","PE","CO","VE","BO","EC","PA","CR","GT","MX","CU","BR","GY","PY","SR","UY","HN","SV","NI"]
+  countries: ["AR","CL","PE","CO","VE","BO","EC","PA","CR","GT","MX","CU","BR","GY","PY","SR","UY","HN","SV","NI","DO","HT"]
   max_rows: 1000   # per country upper cap (GeoNames page-size is 1000)
   force_rebuild: true  
   cache_dir: "cache/gazetteer"
