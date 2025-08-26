@@ -46,11 +46,11 @@ Region‑aware maps: plots restricted to South America for readability.
 │  └─ processed/                  # cleaned text, enriched CSVs
 ├─ outputs/                       # figures, maps, final tables
 └─ env/                           # environment files (optional)
-
+```
 
 ## Configuration
 All run‑time parameters live in config.yaml. Use relative paths for portability.
-
+```text
 pdf:
 path: "data/raw/MotorcycleDiaries.pdf" # ← avoid absolute, user‑specific paths
 start_page: 28
@@ -60,7 +60,7 @@ gazetteer:
 username: "<your-GeoNames-username>"
 countries: ["AR", "CL", "PE", "CO", "VE", "BO", "EC", "PA", "CR", "GT", "MX", "CU", "BR", "GY", "PY", "SR", "UY", "HN", "SV", "NI"]
 max_rows: 1000
-
+```
 ## Quickstart
 
 1. Open nowa_wersja.ipynb.
